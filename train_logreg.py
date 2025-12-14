@@ -6,6 +6,8 @@ from sklearn.metrics import accuracy_score, classification_report
 
 from preprocess import prepare_data
 
+import joblib
+
 
 def evaluate(name, y_true, y_pred):
     acc = accuracy_score(y_true, y_pred)
@@ -18,8 +20,8 @@ def evaluate(name, y_true, y_pred):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--csv_path", required=True, help="URL-only CSV path (must have 'url' column)")
-    parser.add_argument("--max_features", type=int, default=100)
-    parser.add_argument("--ngrams", type=int, default=1, help="1=unigram, 2=up to bigram")
+    parser.add_argument("--max_features", type=int, default=1000)
+    parser.add_argument("--ngrams", type=int, default=2, help="1=unigram, 2=up to bigram")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--test_csv", default=None, help="Optional extra URL-only CSV to evaluate on")
     args = parser.parse_args()
@@ -27,6 +29,7 @@ def main():
     #  1. Load the CSV files & Preprocess the data (using from preprocess.py)
     print("Loading data via prepare_data()...")
     X, y = prepare_data(args.csv_path)
+    # print to check prepare_data() output print(X[:5], y[:5])
 
     print(f"Loaded {len(X)} examples. Class balance: fox={(sum(1 for t in y if t==0))}, nbc={(sum(1 for t in y if t==1))}")
 
@@ -61,6 +64,11 @@ def main():
         X_test_vec = vectorizer.transform(X_test)  # IMPORTANT: transform only
         y_test_pred = lr_model.predict(X_test_vec)
         evaluate("LogReg (external)", y_test, y_test_pred)
+
+
+    # Save the model and vectorize for model deployment
+    joblib.dump(vectorizer, "logreg_vectorizer.joblib")
+    joblib.dump(lr_model, "logreg_model.joblib")
 
 
 if __name__ == "__main__":

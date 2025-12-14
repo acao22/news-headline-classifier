@@ -121,34 +121,65 @@ def infer_source_from_url(url):
 
 def prepare_data(csv_path: str):
     """
-    Backend-aligned prepare_data():
-    - X: URL-derived text (url slug parsing, not headline)
-    - y: derived from URL domain (fox=0, nbc=1)
-    - No scraping, no reliance on 'headline' column. (for explatory discussion only)
+    Prepare data from CSV file for model training/inference.
+    
+    Handles two cases:
+    1. Training data: CSV has 'headline' and 'source' columns
+    2. Test data: CSV has only 'url' column (will extract pseudo-headlines from URL slugs)
+    
+    Args:
+        csv_path: Path to CSV file with either:
+                  - columns: url, source, headline (training data)
+                  - column: url (test data, will extract headlines from URL structure)
+        
+    Returns:
+        X: List/array of preprocessed headline strings
+        y: List/array of labels (0 for 'fox', 1 for 'nbc')
+           If source can't be determined, returns list of 0s
     """
+    # load CSV
     df = pd.read_csv(csv_path)
-
-    if "url" not in df.columns:
-        raise ValueError(f"CSV must contain a 'url' column. Found columns: {df.columns.tolist()}")
-
-    # normalize urls
-    urls = df["url"].astype(str).apply(normalize_url)
-
-    # labels from domain (drop non-fox/nbc)
-    sources = urls.apply(infer_source_from_url)  # 'fox'/'nbc'/None
-    keep = sources.notna()
-    urls = urls[keep].reset_index(drop=True)
-    sources = sources[keep].reset_index(drop=True)
-
-    # X from URL slug text
-    X = urls.apply(extract_headline_from_url).tolist()
-    X = [clean_text(x) for x in X]
-
-    # drop empties after cleaning
-    keep2 = [len(x) > 0 for x in X]
-    X = [x for x, k in zip(X, keep2) if k]
-    sources = sources[[i for i, k in enumerate(keep2) if k]].reset_index(drop=True)
-
-    y = (sources != "fox").astype(int).tolist()
-
-    return X, y
+    
+    # check if we have headlines or need to extract from URLs
+    if 'headline' in df.columns:
+        # training data format - headlines already provided
+        df = df.dropna(subset=['headline'])
+        headlines = df['headline'].tolist()
+    elif 'url' in df.columns:
+        # test data format - extract pseudo-headlines from URL slugs
+        # (scraping not allowed, so we parse the URL structure)
+        print(f"extracting headlines from {len(df)} URLs...")
+        headlines = []
+        valid_indices = []
+        for idx, url in enumerate(df['url']):
+            headline = extract_headline_from_url(url)
+            if headline:  # only keep if we successfully extracted
+                headlines.append(headline)
+                valid_indices.append(idx)
+        # filter df to only rows where we got headlines
+        df = df.iloc[valid_indices].reset_index(drop=True)
+        print(f"successfully extracted {len(headlines)} headlines from URLs")
+    else:
+        raise ValueError("CSV must have either 'headline' or 'url' column")
+    
+    # clean headlines
+    headlines = [clean_text(h) for h in headlines]
+    
+    # remove empty headlines after cleaning
+    valid_mask = [len(h) > 0 for h in headlines]
+    headlines = [h for h, valid in zip(headlines, valid_mask) if valid]
+    df = df[valid_mask].reset_index(drop=True)
+    
+    # get labels - either from 'source' column or infer from URL
+    if 'source' in df.columns:
+        # use provided source labels
+        y = (df['source'] != 'fox').astype(int).tolist()
+    elif 'url' in df.columns:
+        # infer source from URL domain
+        sources = df['url'].apply(infer_source_from_url)
+        y = (sources != 'fox').astype(int).tolist()
+    else:
+        # can't determine source, return zeros (will be wrong but allows model to run)
+        y = [0] * len(headlines)
+    
+    return headlines, y

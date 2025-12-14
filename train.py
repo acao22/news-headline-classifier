@@ -92,7 +92,7 @@ def evaluate(model, dataloader, criterion, device):
 
 def main():
     parser = argparse.ArgumentParser(description='train news headline classifier')
-    parser.add_argument('--csv_path', type=str, default='headline_dataset.csv',
+    parser.add_argument('--csv_path', type=str, default='url_only_data.csv',
                         help='Path to CSV file')
     parser.add_argument('--epochs', type=int, default=30,
                         help='Number of training epochs')
@@ -166,7 +166,7 @@ def main():
     
     # create model with increased dropout
     model = NewsClassifier(
-        vocab_size=len(tokenizer.word_to_idx),
+        vocab_size=args.vocab_size,
         embedding_dim=args.embedding_dim,
         hidden_dim=args.hidden_dim,
         num_layers=2,
