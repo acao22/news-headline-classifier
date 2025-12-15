@@ -3,8 +3,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report
+from collections import Counter
 
 from preprocess import prepare_data
+import numpy as np
 
 import joblib
 
@@ -13,6 +15,12 @@ def evaluate(name, y_true, y_pred):
     acc = accuracy_score(y_true, y_pred)
     print(f"\n=== {name} ===")
     print(f"Accuracy: {acc:.4f}")
+    print("y_true distribution:", Counter(y_true))
+    print("y_pred distribution:", Counter(y_pred))
+
+    # Also sanity-check unique labels
+    print("unique y_true:", np.unique(y_true))
+    print("unique y_pred:", np.unique(y_pred))
     print(classification_report(y_true, y_pred))
     return acc
 
@@ -20,7 +28,7 @@ def evaluate(name, y_true, y_pred):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--csv_path", required=True, help="URL-only CSV path (must have 'url' column)")
-    parser.add_argument("--max_features", type=int, default=1000)
+    parser.add_argument("--max_features", type=int, default=2000)
     parser.add_argument("--ngrams", type=int, default=2, help="1=unigram, 2=up to bigram")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--test_csv", default=None, help="Optional extra URL-only CSV to evaluate on")
@@ -51,7 +59,7 @@ def main():
     X_val_vec = vectorizer.transform(X_val)
 
     # 4. Train a Logistic Regression model
-    lr_model = LogisticRegression(max_iter=100)
+    lr_model = LogisticRegression(max_iter=100, class_weight='balanced')
     lr_model.fit(X_train_vec, y_train)
 
     # 5. Prediction on the val set & evaluate
@@ -61,7 +69,7 @@ def main():
     # Optional: evaluate on another URL-only dataset (same prepare_data rules)
     if args.test_csv:
         X_test, y_test = prepare_data(args.test_csv)
-        X_test_vec = vectorizer.transform(X_test)  # IMPORTANT: transform only
+        X_test_vec = vectorizer.transform(X_test)  
         y_test_pred = lr_model.predict(X_test_vec)
         evaluate("LogReg (external)", y_test, y_test_pred)
 
